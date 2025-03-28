@@ -1,189 +1,141 @@
 import re
 from abc import ABC, abstractmethod
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
-# Custom Exception
+# Database initialization
+db = SQLAlchemy()
+
+# Custom Exception for validation errors
 class InvalidTransactionError(Exception):
-    """Raised when a transaction is invalid."""
-    pass
+    """Exception raised for invalid transactions."""
+    def __init__(self, message):
+        super().__init__(message)
 
-
-# Abstract Base Class
+# Abstract Base Class with Abstraction
 class Transaction(ABC):
-    """Abstract base class for all transactions."""
-    
-    # Static variable to track total transactions
+    """Abstract base class for transactions, enforcing get_details method in subclasses."""
     total_transactions = 0
 
-    def __init__(self, name, amount, category, date):
+    def __init__(self, name, amount, source, date):
+        """Initialize a transaction with name, amount, source, and date."""
         self._name = name
-        self._amount = amount  # Encapsulation: Protected variable
-        self._category = category
+        self._amount = amount
+        self._source = source
         self._date = date
-        Transaction.total_transactions += 1  # Increment static variable
+        Transaction.total_transactions += 1
 
     @property
     def amount(self):
+        """Getter for amount."""
         return self._amount
 
     @amount.setter
     def amount(self, value):
+        """Setter for amount with validation."""
         if not self.validate_amount(value):
-            raise ValueError("Invalid amount. Amount must be a positive number with up to 2 decimal places.")
+            raise InvalidTransactionError("Invalid amount. Must be a positive number with up to 2 decimal places.")
         self._amount = value
+
+    @abstractmethod
+    def get_details(self):
+        """Abstract method to get transaction details, must be implemented by subclasses."""
+        pass
 
     @staticmethod
     def validate_amount(amount_str):
-        """Validate amount using regular expression."""
-        pattern = r'^\d+(\.\d{1,2})?$'  # Matches integers or decimals with up to 2 decimal places
+        """Validate amount format."""
+        pattern = r'^\d+(\.\d{1,2})?$'
         return re.match(pattern, str(amount_str))
 
     @staticmethod
     def validate_date(date_str):
-        """Validate date using regular expression."""
-        pattern = r'^\d{4}-\d{2}-\d{2}$'  # YYYY-MM-DD format
+        """Validate date format."""
+        pattern = r'^\d{4}-\d{2}-\d{2}$'
         return re.match(pattern, date_str)
 
     @staticmethod
-    def validate_category(category):
-        """Validate category using regular expression."""
-        pattern = r'^[A-Za-z\s]+$'  # Only letters and spaces allowed
-        return re.match(pattern, category)
-
-    @abstractmethod
-    def get_details(self):
-        """Abstract method to get transaction details."""
-        pass
-
-    @staticmethod
-    def get_total_transactions():
-        """Static method to get the total number of transactions."""
-        return Transaction.total_transactions
-
-
-# Derived Classes Using Inheritance
-class Income(Transaction):
-    """Class representing income transactions."""
-
-    def __init__(self, amount, source, date):
-        super().__init__("Income", amount, source, date)
-        if not self.validate_category(source):
-            raise ValueError("Invalid source. Source must contain only letters and spaces.")
-        self._source = source
-
-    def get_details(self):
-        return f"Income of {self._amount} from {self._source} on {self._date}"
-
+    def validate_source(source):
+        """Validate source format."""
+        pattern = r'^[A-Za-z\s]+$'
+        return re.match(pattern, source)
 
 class Expense(Transaction):
-    """Class representing expense transactions."""
-
-    def __init__(self, name, amount, category, date):
-        super().__init__(name, amount, category, date)
-        if not self.validate_category(category):
-            raise ValueError("Invalid category. Category must contain only letters and spaces.")
+    """Represents an expense transaction."""
+    def __init__(self, name, amount, source, date):
+        super().__init__(name, -amount, source, date)
 
     def get_details(self):
-        return f"Expense '{self._name}' of {self._amount} in {self._category} on {self._date}"
+        """Returns details of the expense transaction."""
+        return f"Expense: {self._name}, Amount: {self._amount}, Source: {self._source}, Date: {self._date}"
 
+class Income(Transaction):
+    """Represents an income transaction."""
+    def __init__(self, name, amount, source, date):
+        super().__init__(name, amount, source, date)
 
-# Polymorphism Example
-def print_transaction_details(transactions):
-    """Function to demonstrate polymorphism."""
-    for transaction in transactions:
-        print(transaction.get_details())
+    def get_details(self):
+        """Returns details of the income transaction."""
+        return f"Income: {self._name}, Amount: {self._amount}, Source: {self._source}, Date: {self._date}"
 
-
-# Savings Tracker with Exception Handling
 class SavingsTracker:
-    """Class to track savings based on income and expenses."""
+    """Handles transaction management for users."""
+    def __init__(self, db):
+        self.db = db
 
-    def __init__(self):
-        self._income = []
-        self._expenses = []
-
-    def add_income(self, amount, source, date):
-        """Add income to the tracker."""
+    def add_expense(self, user_id, name, amount, source, date):
+        """Adds an expense for a user with error handling."""
         try:
-            if not Transaction.validate_amount(amount):
-                raise ValueError("Invalid income amount.")
-            if not Transaction.validate_date(date):
-                raise ValueError("Invalid date format. Use YYYY-MM-DD.")
-            self._income.append(Income(amount, source, date))
-        except ValueError as e:
-            print(f"Error adding income: {e}")
+            expense = Expense(name, amount, source, date)
+            print(expense.get_details())
+            transaction = TransactionModel(user_id=user_id, amount=expense.amount, description=expense._name, source=expense._source, date=expense._date)
+            self.db.session.add(transaction)
+            self.db.session.commit()
+        except InvalidTransactionError as e:
+            print(f"Error: {e}")
 
-    def add_expense(self, name, amount, category, date):
-        """Add expense to the tracker."""
+    def add_income(self, user_id, name, amount, source, date):
+        """Adds an income for a user with error handling."""
         try:
-            if not Transaction.validate_amount(amount):
-                raise ValueError("Invalid expense amount.")
-            if not Transaction.validate_date(date):
-                raise ValueError("Invalid date format. Use YYYY-MM-DD.")
-            self._expenses.append(Expense(name, amount, category, date))
-        except ValueError as e:
-            print(f"Error adding expense: {e}")
+            income = Income(name, amount, source, date)
+            print(income.get_details())
+            transaction = TransactionModel(user_id=user_id, amount=income.amount, description=income._name, source=income._source, date=income._date)
+            self.db.session.add(transaction)
+            self.db.session.commit()
+        except InvalidTransactionError as e:
+            print(f"Error: {e}")
 
-    def calculate_savings(self):
-        """Calculate total savings."""
+class TransactionModel(db.Model):
+    """Database model for storing transactions."""
+    __tablename__ = 'Transactions'
+    transaction_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('Users.user_id'))
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    description = db.Column(db.String(255))
+    source = db.Column(db.String(50))
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+
+from database import TransactionModel, db
+
+class TransactionManager:
+    """Handles transaction operations."""
+
+    @staticmethod
+    def add_transaction(user_id, amount, description, source):
+        """Adds a new transaction for a user."""
         try:
-            total_income = sum(income.amount for income in self._income)
-            total_expenses = sum(expense.amount for expense in self._expenses)
-            if total_expenses == 0:
-                raise ZeroDivisionError("Cannot calculate savings ratio when expenses are zero.")
-            savings_ratio = total_income / total_expenses
-            return total_income - total_expenses, savings_ratio
-        except ZeroDivisionError as e:
-            print(f"Error calculating savings: {e}")
-            return total_income - total_expenses, None
+            new_transaction = TransactionModel(user_id=user_id, amount=amount, description=description, source=source)
+            db.session.add(new_transaction)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise Exception(f"Error adding transaction: {str(e)}")
 
+    @staticmethod
+    def get_transactions(user_id):
+        """Retrieves transactions for a user."""
+        try:
+            return TransactionModel.query.filter_by(user_id=user_id).all()
+        except Exception as e:
+            raise Exception(f"Error retrieving transactions: {str(e)}")
 
-# Main Program with User Input
-if __name__ == "__main__":
-    # Initialize Savings Tracker
-    tracker = SavingsTracker()
-
-    # Menu-driven user input
-    while True:
-        print("\nPersonal Finance Tracker")
-        print("1. Add Income")
-        print("2. Add Expense")
-        print("3. Calculate Savings")
-        print("4. View Transactions")
-        print("5. Exit")
-
-        choice = input("Enter your choice: ")
-
-        if choice == "1":
-            # Add Income
-            amount = input("Enter income amount: ")
-            source = input("Enter source of income: ")
-            date = input("Enter date (YYYY-MM-DD): ")
-            tracker.add_income(amount, source, date)
-
-        elif choice == "2":
-            # Add Expense
-            amount = input("Enter expense amount: ")
-            category = input("Enter expense category: ")
-            date = input("Enter date (YYYY-MM-DD): ")
-            tracker.add_expense(amount, category, date)
-
-        elif choice == "3":
-            # Calculate Savings
-            savings, ratio = tracker.calculate_savings()
-            print(f"\nTotal Savings: {savings}")
-            if ratio is not None:
-                print(f"Savings Ratio (Income/Expenses): {ratio:.2f}")
-
-        elif choice == "4":
-            # View Transactions
-            print("\nTransaction Details:")
-            transactions = tracker._income + tracker._expenses
-            print_transaction_details(transactions)
-
-        elif choice == "5":
-            # Exit
-            print("Exiting the Personal Finance Tracker. Goodbye!")
-            break
-
-        else:
-            print("Invalid choice. Please try again.")
