@@ -1,10 +1,7 @@
 import re
 from abc import ABC, abstractmethod
-from flask_sqlalchemy import SQLAlchemy
+from database import db, TransactionModel
 from datetime import datetime
-
-# Database initialization
-db = SQLAlchemy()
 
 # Custom Exception for validation errors
 class InvalidTransactionError(Exception):
@@ -63,7 +60,7 @@ class Transaction(ABC):
 class Expense(Transaction):
     """Represents an expense transaction."""
     def __init__(self, name, amount, source, date):
-        super().__init__(name, -amount, source, date)
+        super().__init__(name, amount, source, date)
 
     def get_details(self):
         """Returns details of the expense transaction."""
@@ -80,17 +77,16 @@ class Income(Transaction):
 
 class SavingsTracker:
     """Handles transaction management for users."""
-    def __init__(self, db):
-        self.db = db
 
     def add_expense(self, user_id, name, amount, source, date):
         """Adds an expense for a user with error handling."""
         try:
             expense = Expense(name, amount, source, date)
+            expense_date = datetime.strptime(date, "%Y-%m-%d")
             print(expense.get_details())
-            transaction = TransactionModel(user_id=user_id, amount=expense.amount, description=expense._name, source=expense._source, date=expense._date)
-            self.db.session.add(transaction)
-            self.db.session.commit()
+            transaction = TransactionModel(user_id=user_id, amount=expense.amount, description=expense._name, source=expense._source, date=expense_date)
+            db.session.add(transaction)
+            db.session.commit()
         except InvalidTransactionError as e:
             print(f"Error: {e}")
 
@@ -98,44 +94,10 @@ class SavingsTracker:
         """Adds an income for a user with error handling."""
         try:
             income = Income(name, amount, source, date)
+            income_date = datetime.strptime(date, "%Y-%m-%d")
             print(income.get_details())
-            transaction = TransactionModel(user_id=user_id, amount=income.amount, description=income._name, source=income._source, date=income._date)
-            self.db.session.add(transaction)
-            self.db.session.commit()
+            transaction = TransactionModel(user_id=user_id, amount=income.amount, description=income._name, source=income._source, date=income_date)
+            db.session.add(transaction)
+            db.session.commit()
         except InvalidTransactionError as e:
             print(f"Error: {e}")
-
-class TransactionModel(db.Model):
-    """Database model for storing transactions."""
-    __tablename__ = 'Transactions'
-    transaction_id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('Users.user_id'))
-    amount = db.Column(db.Numeric(10, 2), nullable=False)
-    description = db.Column(db.String(255))
-    source = db.Column(db.String(50))
-    date = db.Column(db.DateTime, default=datetime.utcnow)
-
-from database import TransactionModel, db
-
-class TransactionManager:
-    """Handles transaction operations."""
-
-    @staticmethod
-    def add_transaction(user_id, amount, description, source):
-        """Adds a new transaction for a user."""
-        try:
-            new_transaction = TransactionModel(user_id=user_id, amount=amount, description=description, source=source)
-            db.session.add(new_transaction)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            raise Exception(f"Error adding transaction: {str(e)}")
-
-    @staticmethod
-    def get_transactions(user_id):
-        """Retrieves transactions for a user."""
-        try:
-            return TransactionModel.query.filter_by(user_id=user_id).all()
-        except Exception as e:
-            raise Exception(f"Error retrieving transactions: {str(e)}")
-

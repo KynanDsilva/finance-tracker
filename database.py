@@ -1,31 +1,32 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from database import UserModel, db
-from flask_login import login_user, logout_user, login_required
+from flask_login import UserMixin
+from datetime import datetime
 
-# Authentication module
-auth = Blueprint('auth', __name__)
+# Initialize the database
+db = SQLAlchemy()
 
-class AuthService:
-    """Service for handling authentication operations."""
-    @staticmethod
-    def login_user(email, password):
-        user = UserModel.query.filter_by(email=email).first()
-        if user and check_password_hash(user.password, password):
-            login_user(user)
-            return True
-        return False
+class UserModel(UserMixin, db.Model):
+    __tablename__ = 'users'
 
-    @staticmethod
-    def register_user(email, name, password):
-        if UserModel.query.filter_by(email=email).first():
-            return False
-        new_user = UserModel(email=email, name=name, password=generate_password_hash(password, method='sha256'))
-        db.session.add(new_user)
-        db.session.commit()
-        login_user(new_user)
-        return True
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
 
-    @staticmethod
-    def logout_user():
-        logout_user()
+    def __init__(self, username, email, password):
+        self.username = username
+        self.email = email
+        self.password = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password, password)
+    
+class TransactionModel(db.Model):
+    __tablename__ = 'transactions'
+    transaction_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    description = db.Column(db.String(255))
+    source = db.Column(db.String(50))
+    date = db.Column(db.DateTime, default=datetime.utcnow)

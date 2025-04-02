@@ -9,18 +9,18 @@ auth = Blueprint('auth', __name__)
 class AuthService:
     """Service for handling authentication operations."""
     @staticmethod
-    def login_user(email, password):
-        user = UserModel.query.filter_by(email=email).first()
+    def login_user(username, password):
+        user = UserModel.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
             login_user(user)
             return True
         return False
 
     @staticmethod
-    def register_user(email, name, password):
-        if UserModel.query.filter_by(email=email).first():
+    def register_user(username, email, password):
+        if UserModel.query.filter_by(username=username).first():
             return False
-        new_user = UserModel(email=email, name=name, password=generate_password_hash(password, method='sha256'))
+        new_user = UserModel(username=username, email=email, password=password)
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user)
