@@ -52,12 +52,13 @@
         }
 
         main {
-            padding: 2.5rem;
+            padding: 1rem;
             text-align: center;
         }
 
         main h2 {
             font-size: 2rem;
+            margin-top: 0;
             margin-bottom: 1rem;
         }
 
@@ -77,6 +78,7 @@
 
         section h3 {
             font-size: 1.5rem;
+            margin-top: 0;
             margin-bottom: 1rem;
             color: #1e88e5;
         }
@@ -146,10 +148,10 @@
     <main>
         <section>
             <h2>Generate Financial Reports</h2>
-            <form action="/generate-report" method="POST">
+            <form action="/reports" method="POST">
                 <label for="report-type">Report Type:</label>
                 <select id="report-type" name="report_type" required>
-                    <option value="income-expense-summary">Income vs Expense Summary</option>
+                    <option value="income-expense">Income vs Expense Summary</option>
                     <option value="category-analysis">Category Analysis</option>
                 </select>
 
@@ -164,8 +166,40 @@
         </section>
         <section id="report-output">
             <h3>Report Output</h3>
-            <p>No report generated yet. Please fill out the form above and click "Generate Report" to see the results here.</p>
+        
+            {% if income_expense_summary %}
+                <h4>Income vs Expense Summary</h4>
+                <table border="1" style="margin: auto; width: 60%; border-collapse: collapse;">
+                    <tr>
+                        <th>Total Income</th>
+                        <th>Total Expense</th>
+                        <th>Net</th>
+                    </tr>
+                    <tr>
+                        <td>{{ income_expense_summary.income }}</td>
+                        <td>{{ income_expense_summary.expense }}</td>
+                        <td>{{ income_expense_summary.net }}</td>
+                    </tr>
+                </table>
+            {% elif category_summary %}
+                <h4>Category Analysis</h4>
+                <table border="1" style="margin: auto; width: 60%; border-collapse: collapse;">
+                    <tr>
+                        <th>Category</th>
+                        <th>Total Expense</th>
+                    </tr>
+                    {% for category, total in category_summary %}
+                    <tr>
+                        <td>{{ category }}</td>
+                        <td>{{ total }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p>No report generated yet. Please fill out the form above and click "Generate Report" to see the results here.</p>
+            {% endif %}
         </section>
+        
     </main>
 </body>
 

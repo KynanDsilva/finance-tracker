@@ -1,8 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask import Flask, render_template, request, redirect, url_for, session
+from flask_login import LoginManager, login_required, current_user
+from datetime import timedelta
 from tracker_module import SavingsTracker
 from auth import AuthService
 from database import db, UserModel, TransactionModel
+from sqlalchemy import func
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecretkey'
@@ -14,10 +16,6 @@ login_manager.login_view = 'login'
 login_manager.init_app(app)
 
 tracker = SavingsTracker()
-
-with app.app_context():
-    db.create_all()
-    print("Registered tables: ", db.metadata.tables.keys())
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -61,7 +59,8 @@ def expense():
         date = request.form['expense_date']
         tracker.add_expense(current_user.id, name, amount, category, date)
         return redirect(url_for('expense'))
-    return render_template('expense.html')
+    recent_expenses = TransactionModel.query.filter_by(user_id=current_user.id).filter(TransactionModel.description!="Income").order_by(TransactionModel.date.desc()).limit(5).all()
+    return render_template('expense.html', recent_expenses=recent_expenses)
 
 @app.route('/income', methods=['GET', 'POST'])
 @login_required
@@ -72,11 +71,25 @@ def income():
         date = request.form['income_date']
         tracker.add_income(current_user.id, "Income", amount, source, date)
         return redirect(url_for('income'))
-    return render_template('income.html')
+    recent_incomes = TransactionModel.query.filter_by(user_id=current_user.id).filter(TransactionModel.description=="Income").order_by(TransactionModel.date.desc()).limit(5).all()
+    return render_template('income.html', recent_incomes=recent_incomes)
 
 @app.route('/reports', methods=['GET', 'POST'])
 @login_required
 def reports():
+    if request.method == 'POST':
+        report_type = request.form['report_type']
+        start_date = request.form['start_date']
+        end_date = request.form['end_date']
+        if report_type=='income-expense':
+            income_total = db.session.query(func.sum(TransactionModel.amount)).filter_by(user_id=current_user.id, description="Income").filter(TransactionModel.date >= start_date, TransactionModel.date <= end_date).scalar() or 0
+            expense_total = db.session.query(func.sum(TransactionModel.amount)).filter_by(user_id=current_user.id).filter(TransactionModel.description!="Income").filter(TransactionModel.date >= start_date, TransactionModel.date <= end_date).scalar() or 0
+            net = income_total - expense_total
+            income_expense_summary = {"income": income_total, "expense": expense_total, "net": net}
+            return render_template('reports.html', income_expense_summary=income_expense_summary)
+        elif report_type=='category-analysis':
+            category_summary = db.session.query(TransactionModel.source, func.sum(TransactionModel.amount)).filter_by(user_id=current_user.id).filter(TransactionModel.description!="Income", TransactionModel.date >= start_date, TransactionModel.date <= end_date).group_by(TransactionModel.source).all()
+            return render_template('reports.html', category_summary=category_summary)
     return render_template('reports.html')
 
 if __name__ == '__main__':

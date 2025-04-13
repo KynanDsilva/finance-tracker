@@ -176,7 +176,7 @@
                 <input type="date" id="date" name="income_date" required>
 
                 <div style="text-align: center;">
-                    <button type="submit">Add Expense</button>
+                    <button type="submit">Add Income</button>
                 </div>
             </form>
         </section>
@@ -192,7 +192,17 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Income entries will be dynamically populated here -->
+                    {% for income in recent_incomes %}
+                    <tr>
+                        <td>{{ income.source }}</td>
+                        <td>{{ '%.2f'|format(income.amount) }}</td>
+                        <td>{{ income.date.strftime('%d-%m-%Y') }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">No recent expenses found.</td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </section>
