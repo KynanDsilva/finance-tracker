@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, login_required, current_user
 from datetime import timedelta
 from tracker_module import SavingsTracker
@@ -53,11 +53,17 @@ def register():
 @login_required
 def expense():
     if request.method == 'POST':
-        name = request.form['expense_name']
-        amount = request.form['expense_amount']
-        category = request.form['expense_category']
-        date = request.form['expense_date']
-        tracker.add_expense(current_user.id, name, amount, category, date)
+        try:
+            name = request.form['expense_name']
+            amount = request.form['expense_amount']
+            category = request.form['expense_category']
+            date = request.form['expense_date']
+            tracker.add_expense(current_user.id, name, amount, category, date)
+        except (ValueError, TypeError) as e:
+            flash("Invalid input: " + str(e), "error")
+            return redirect(url_for('expense'))
+        else:
+            flash("Expense added successfully", "success")
         return redirect(url_for('expense'))
     recent_expenses = TransactionModel.query.filter_by(user_id=current_user.id).filter(TransactionModel.description!="Income").order_by(TransactionModel.date.desc()).limit(5).all()
     return render_template('expense.html', recent_expenses=recent_expenses)
@@ -66,10 +72,16 @@ def expense():
 @login_required
 def income():
     if request.method == 'POST':
-        amount = float(request.form.get('income_amount'))
-        source = request.form['income_source']
-        date = request.form['income_date']
-        tracker.add_income(current_user.id, "Income", amount, source, date)
+        try:
+            amount = float(request.form.get('income_amount'))
+            source = request.form['income_source']
+            date = request.form['income_date']
+            tracker.add_income(current_user.id, "Income", amount, source, date)
+        except (ValueError, TypeError) as e:
+            flash("Invalid input: " + str(e), "error")
+            return redirect(url_for('income'))
+        else:
+            flash("Income added successfully")
         return redirect(url_for('income'))
     recent_incomes = TransactionModel.query.filter_by(user_id=current_user.id).filter(TransactionModel.description=="Income").order_by(TransactionModel.date.desc()).limit(5).all()
     return render_template('income.html', recent_incomes=recent_incomes)
